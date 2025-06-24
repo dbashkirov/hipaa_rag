@@ -1,0 +1,45 @@
+version: "3.12"
+
+services:
+  db:
+    image: ankane/pgvector:latest          # ← остаётся как было
+    environment:
+      POSTGRES_DB: ${PG_DATABASE}
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    volumes: [dbdata:/var/lib/postgresql/data]
+
+  api:
+    build: ./app
+    env_file: .env
+    depends_on: [db]
+    command: bash -c "python ingest.py && uvicorn api:app --host 0.0.0.0 --port 8000"
+
+  ui:
+    build: ./ui
+    env_file: .env
+    depends_on: [api]
+    command: streamlit run streamlit_app.py --server.port 8501
+
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [ui, api, pgadmin]
+    ports: ["80:80"]
+
+  pgadmin:
+    image: dpage/pgadmin4:8.7
+    environment:
+      PGADMIN_DEFAULT_EMAIL: pgadmin@example.com
+      PGADMIN_DEFAULT_PASSWORD: secret123
+    depends_on: [db]
+    ports:
+      - "5051:80"                
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    restart: unless-stopped
+
+volumes:
+  dbdata:
+  pgadmin-data:
